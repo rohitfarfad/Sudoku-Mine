@@ -151,7 +151,7 @@ def select_unassigned_variable(csp, assignment, domains):
     if len(mrv_candidates) == 1:
         return mrv_candidates[0]
 
-    # Degree heuristic: max number of unassigned neighbors
+    # Degree heuristic
     best = None
     best_degree = -1
     for v in mrv_candidates:
@@ -163,14 +163,12 @@ def select_unassigned_variable(csp, assignment, domains):
 
 
 def order_domain_values(var, domains):
-    # The assignment says: just use domain in order {0, 1}.
+    # Using domain in order {0, 1}.
     return sorted(domains[var])
 
 
 def is_consistent(csp, var, value, assignment):
-    """
-    Check whether assigning var=value keeps all constraints consistent.
-    """
+    # Check whether assigning var=value keeps all constraints consistent.
     assignment[var] = value
     # Only need to check constraints involving var
     for cons in csp.var_constraints[var]:
@@ -182,12 +180,7 @@ def is_consistent(csp, var, value, assignment):
 
 
 def forward_check(csp, var, assignment, domains):
-    """
-    Forward Checking:
-
-    After assigning var, revise domains of its neighbors.
-    If any neighbor domain becomes empty, return False.
-    """
+    # Forward Checking
     for nbr in csp.neighbors[var]:
         if nbr in assignment:
             continue
@@ -226,7 +219,6 @@ def backtrack(csp, assignment, domains, depth, stats):
 
     for value in order_domain_values(var, domains):
         if is_consistent(csp, var, value, assignment):
-            # Copy domains for recursive call
             new_domains = deepcopy(domains)
             assignment[var] = value
 
@@ -236,11 +228,8 @@ def backtrack(csp, assignment, domains, depth, stats):
                 )
                 if result is not None:
                     return result, goal_depth
-
-            # undo assignment
             del assignment[var]
 
-    # failure
     return None, None
 
 
