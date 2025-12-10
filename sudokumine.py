@@ -2,6 +2,8 @@ from collections import defaultdict
 from copy import deepcopy
 from dataclasses import dataclass
 
+
+# Define constants for board size and mine counts
 GRID_SIZE = 9
 BLOCK_SIZE = 3
 MINES_PER_ROW = 3
@@ -9,6 +11,7 @@ MINES_PER_COL = 3
 MINES_PER_BLOCK = 3
 
 
+# Constraint on a group of variables whose values must sum to target
 @dataclass
 class SumConstraint:
     scope: list  # list of variable ids
@@ -17,20 +20,20 @@ class SumConstraint:
     def is_consistent(self, assignment):
         """
         Check this constraint against current (partial) assignment.
-
         - sum of assigned values must not exceed target
         - even if all remaining variables become 1, must still be able
           to reach target
         """
         s_assigned = 0
         remaining_unassigned = 0
+        # Accumulate sum of assigned vars and count unassigned ones
         for v in self.scope:
             if v in assignment:
                 s_assigned += assignment[v]
             else:
                 remaining_unassigned += 1
 
-        # Too many mines already
+        # Too many mines for this constraint
         if s_assigned > self.target:
             return False
 
@@ -43,6 +46,7 @@ class SumConstraint:
 
 
 class SudokuMineCSP:
+    # Encapsulates the CSP representation of the Sudoku Mine board
     def __init__(self, clues_grid):
         """
         clues_grid: 9x9 int matrix.
@@ -56,6 +60,7 @@ class SudokuMineCSP:
         # Reverse: (row, col) -> var id
         self.pos_var = {}
 
+        # List of variable ids
         self.variables = []
         self._create_variables()
 
@@ -67,6 +72,7 @@ class SudokuMineCSP:
         self.var_constraints = defaultdict(list)  # var -> list[SumConstraint]
         self.neighbors = {v: set() for v in self.variables}
 
+        # Build all constraints from clues
         self._create_constraints()
 
     def _create_variables(self):
@@ -75,12 +81,14 @@ class SudokuMineCSP:
         for r in range(GRID_SIZE):
             for c in range(GRID_SIZE):
                 if self.clues[r][c] == 0:
+                    # Add new variable and record its position
                     self.variables.append(vid)
                     self.var_pos[vid] = (r, c)
                     self.pos_var[(r, c)] = vid
                     vid += 1
 
     def _add_constraint(self, scope, target):
+        # Attach a SumConstraint and update bookkeeping
         if not scope:  # no variables participating; skip
             return
         cons = SumConstraint(scope=scope, target=target)
@@ -95,7 +103,7 @@ class SudokuMineCSP:
                 self.neighbors[v2].add(v1)
 
     def _create_constraints(self):
-        # Row constraints
+        # Row constraints: each row must have exactly MINES_PER_ROW mines
         for r in range(GRID_SIZE):
             scope = []
             for c in range(GRID_SIZE):
@@ -103,7 +111,7 @@ class SudokuMineCSP:
                     scope.append(self.pos_var[(r, c)])
             self._add_constraint(scope, MINES_PER_ROW)
 
-        # Column constraints
+        # Column constraints: each column must have exactly MINES_PER_COL mines
         for c in range(GRID_SIZE):
             scope = []
             for r in range(GRID_SIZE):
@@ -111,7 +119,7 @@ class SudokuMineCSP:
                     scope.append(self.pos_var[(r, c)])
             self._add_constraint(scope, MINES_PER_COL)
 
-        # Block constraints (3x3)
+        # Block constraints (3x3): each block must have exactly MINES_PER_BLOCK mines
         for br in range(0, GRID_SIZE, BLOCK_SIZE):
             for bc in range(0, GRID_SIZE, BLOCK_SIZE):
                 scope = []
@@ -121,12 +129,13 @@ class SudokuMineCSP:
                             scope.append(self.pos_var[(r, c)])
                 self._add_constraint(scope, MINES_PER_BLOCK)
 
-        # Number (neighbor) constraints
+        # Number (neighbor) constraints from numbered cells
         for r in range(GRID_SIZE):
             for c in range(GRID_SIZE):
                 val = self.clues[r][c]
                 if val > 0:
                     scope = []
+                    # Collect neighboring variable cells
                     for dr in [-1, 0, 1]:
                         for dc in [-1, 0, 1]:
                             if dr == 0 and dc == 0:
@@ -140,10 +149,11 @@ class SudokuMineCSP:
 
 def select_unassigned_variable(csp, assignment, domains):
     """
-    MRV + Degree heuristic.
+    Pick next variable using MRV, then Degree heuristic.
     """
+    # All variables not yet assigned
     unassigned = [v for v in csp.variables if v not in assignment]
-    # MRV
+    # MRV: minimize size of remaining domain
     min_domain_size = min(len(domains[v]) for v in unassigned)
     mrv_candidates = [v for v in unassigned
                       if len(domains[v]) == min_domain_size]
@@ -151,7 +161,7 @@ def select_unassigned_variable(csp, assignment, domains):
     if len(mrv_candidates) == 1:
         return mrv_candidates[0]
 
-    # Degree heuristic
+    # Degree heuristic: break ties by most unassigned neighbors
     best = None
     best_degree = -1
     for v in mrv_candidates:
@@ -163,12 +173,12 @@ def select_unassigned_variable(csp, assignment, domains):
 
 
 def order_domain_values(var, domains):
-    # Using domain in order {0, 1}.
+    # Explore domain values in fixed order {0, 1}
     return sorted(domains[var])
 
 
 def is_consistent(csp, var, value, assignment):
-    # Check whether assigning var=value keeps all constraints consistent.
+    # Temporarily assign value and check all related constraints
     assignment[var] = value
     # Only need to check constraints involving var
     for cons in csp.var_constraints[var]:
@@ -180,7 +190,7 @@ def is_consistent(csp, var, value, assignment):
 
 
 def forward_check(csp, var, assignment, domains):
-    # Forward Checking
+    # Forward Checking: prune neighbor domains after assigning var
     for nbr in csp.neighbors[var]:
         if nbr in assignment:
             continue
@@ -215,25 +225,31 @@ def backtrack(csp, assignment, domains, depth, stats):
     if len(assignment) == len(csp.variables):
         return assignment, depth
 
+    # Choose next variable using MRV + Degree
     var = select_unassigned_variable(csp, assignment, domains)
 
+    # Try each value in its domain
     for value in order_domain_values(var, domains):
         if is_consistent(csp, var, value, assignment):
+            # Copy domains for next level
             new_domains = deepcopy(domains)
             assignment[var] = value
 
+            # Propagate with forward checking
             if forward_check(csp, var, assignment, new_domains):
                 result, goal_depth = backtrack(
                     csp, assignment, new_domains, depth + 1, stats
                 )
                 if result is not None:
                     return result, goal_depth
+            # Undo assignment on failure
             del assignment[var]
 
     return None, None
 
 
 def solve_sudoku_mine(clues_grid):
+    # Driver to create CSP, run backtracking, and return stats
     csp = SudokuMineCSP(clues_grid)
     assignment = {}
     domains = deepcopy(csp.domains)
@@ -248,6 +264,7 @@ def solve_sudoku_mine(clues_grid):
 
 
 def read_input(filename):
+    # Read 9x9 grid of integers from input file
     grid = []
     with open(filename, "r") as f:
         for _ in range(GRID_SIZE):
@@ -271,6 +288,7 @@ def write_output(filename, csp, assignment, goal_depth, nodes_generated):
         r, c = csp.var_pos[v]
         board[r][c] = val
 
+    # Write depth, node count, then final mine layout
     with open(filename, "w") as f:
         f.write(str(goal_depth) + "\n")
         f.write(str(nodes_generated) + "\n")
@@ -280,6 +298,7 @@ def write_output(filename, csp, assignment, goal_depth, nodes_generated):
 
 
 def main():
+    # CLI entry point: read input, solve, write output
     import sys
     if len(sys.argv) != 3:
         print("Usage: python sudoku_mine.py input.txt output.txt")
