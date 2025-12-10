@@ -11,4 +11,4 @@ Implements MRV + Degree heuristics and Forward Checking to place mines on a 9×9
 
 ```bash
 # From repo root
-python3 sudoku_mine.py input.txt output.txt
+python3 sudokumine.py input.txt output.txt
