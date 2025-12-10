@@ -298,14 +298,20 @@ def write_output(filename, csp, assignment, goal_depth, nodes_generated):
 
 
 def main():
-    # CLI entry point: read input, solve, write output
     import sys
     if len(sys.argv) != 3:
         print("Usage: python sudoku_mine.py input.txt output.txt")
         return
 
     in_file, out_file = sys.argv[1], sys.argv[2]
-    clues_grid = read_input(in_file)
+
+    # Handle missing input file
+    try:
+        clues_grid = read_input(in_file)
+    except FileNotFoundError:
+        print(f"Error: input file '{in_file}' not found.")
+        return
+
     csp, assignment, depth, nodes = solve_sudoku_mine(clues_grid)
     write_output(out_file, csp, assignment, depth, nodes)
 
